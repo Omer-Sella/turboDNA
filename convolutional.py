@@ -17,7 +17,7 @@ class FSM():
         fixedLength = len(triggers[0])
         assert all(len(t) == fixedLength for t in triggers)
         
-        
+        self.numberOfStates = len(states)
         self.stepSize = fixedLength
         self.transitionTable = transitionTable
         self.outputTable = outputTable
@@ -50,8 +50,26 @@ class FSM():
         nextStateCoordinate = self.stateDictionary[str(nextState)]
         self.presentState = nextState
         self.presentStateCoordinate = nextStateCoordinate
+        #outputSerialized = 
         return output
-        
+    
+    def getNextPossibleStates(self, state):
+        nextStates = self.transitionTable[state, :]
+        return nextStates
+    
+    def getNextPossibleOutputs(self, state):
+        nextOutputs = self.outputTable[state]
+        return nextOutputs
+    
+def trellisGraphics(numberOfStates):
+    # Omer Sella: still under construction
+    states = np.arange(numberOfStates)                
+    timeStamp = np.ones(self.numberOfStates)
+    colours = np.arange(self.numberOfStates)
+    sizeOfState = 4
+    fig, ax = plt.subplots()
+    scatter = ax.scatter(states, timeStampe, c=colours, s=sizeOfState)
+    plt.show()    
     
     
 def convolutionalEncoder(streamIn, FSM, graphics = False):
@@ -73,7 +91,92 @@ def convolutionalEncoder(streamIn, FSM, graphics = False):
     return encodedStream
 
 
+class path():
+    def __init__(self, initialState):
+        self.traversedStates = [initialState]
+        self.scores = [0]
+        self.presentScore = 0
+        self.pathTriggers = []
+        
+    def presentState(self):
+        return self.traversedStates[-1]
+    
+    def presentScore(self):
+        return self.currentScore
+    
+    def step(self, extension):
+        nextState = extension[0]
+        trigger = extension[1]
+        addedScore = extension[2]
+        print("*** before step:")
+        print("*** " + str(self.pathTriggers))
+        print("*** " + str(self.traversedStates))
+        print("*** ")
+        print("*** ")
+        self.pathTriggers.append(trigger)
+        self.scores.append(addedScore)
+        self.traversedStates.append(nextState)   
+        self.presentScore = self.presentScore + addedScore
+        return
+        
 
+
+def viterbiDecoder(numberOfStates, initialState, scoreFunction, observedSequence, symbolsPerStateTransition):
+    # Viterbi decoder inspired by the implementation suggested by Todd K. Moon, programming laboratory 10, page 528.
+    # More explanations on the Viterbi decoder are found on page 473 of the same book.
+    # A metric function (!) that accepts a set of states p, next state q and observed stream r,
+    # and returns the branch metric present state, next state and returns 
+    assert len(observedSequence) % symbolsPerStateTransition == 0
+    newPath = path(initialState)
+    paths = [newPath]
+    i = 0
+    while i < len(observedSequence) // symbolsPerStateTransition:
+        print("*** i is :")
+        print(i)
+        observedOutput = observedSequence[i * symbolsPerStateTransition : (i + 1) * symbolsPerStateTransition]
+        print(observedOutput)
+        newPaths = []
+        
+        for p in paths:
+            extensions = scoreFunction(p.presentState(), observedOutput, i)
+            
+            for extension in extensions:
+                #print(extension)    
+                newPath = path(0)
+                newPath = copy.deepcopy(p)
+                newPath.step(extension)
+                #print(newPath.traveresedStates)
+                newPaths.append(newPath)
+        paths = newPaths
+        i = i + 1
+    return paths
+    
+def genericScoreFunction(myFSM, presentState, observedOutput, timeStep, additionalInformation):
+    # some useful distances in this package, we may want to try and use it.
+    from scipy.spatial import distance
+    nextPossibleStates = myFSM.getNextPossibleStates(presentState)
+    nextPossibleOutputs = myFSM.getNextPossibleOutputs(presentState)
+    extensions = []    
+    nextPossibleScores = []
+    for output in nextPossibleOutputs:
+        # compute the score of output with respect to the observedOutput
+        #print("*** output is:")
+        #print(output)
+        #print("*** observedOutput is:")
+        #print(observedOutput)
+        score = 1 - distance.hamming(output, observedOutput)
+        nextPossibleScores.append(score)
+    extensions = []
+    # Omer Sella: safety
+    assert (len(nextPossibleStates) == len(nextPossibleOutputs))
+    for i in range(len(nextPossibleStates)):
+        extensions.append( [nextPossibleStates[i], nextPossibleOutputs[i], nextPossibleScores[i]])
+    #print("*** extensions are: ")
+    #print(extensions)
+    return extensions
+
+
+    
 def exampleTwoThirdsConvolutional():
     states = [0,1,2,3,4,5,6,7]
     triggers = [[0,0], [0,1], [1,0], [1,1]]
@@ -90,7 +193,18 @@ def exampleTwoThirdsConvolutional():
     myFSM = FSM(states, triggers, outputTable, nextStateTable, initialState)
     stream = np.random.randint(0,2,10)
     encodedStream = convolutionalEncoder(stream, myFSM)
-    return stream, encodedStream
+
+    flatStream = []
+    for sublist in encodedStream:
+        for item in sublist:
+            flatStream.append(item)
+
+    def myScoreFunction(state, observation, time):
+        return genericScoreFunction(myFSM, state, observation, time, None)
+
+    paths = viterbiDecoder(8, 0, myScoreFunction, flatStream, 3)
+
+    return encodedStream, paths
 
 def testConvolutional_2_3():
     status = 'Not working'
@@ -98,3 +212,5 @@ def testConvolutional_2_3():
     if len(encodedStream) == len(stream)//2:
         status = 'OK'
     return status
+
+es, paths = exampleTwoThirdsConvolutional()
