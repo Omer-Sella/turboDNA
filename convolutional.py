@@ -10,18 +10,26 @@ import copy
 
 
 class FSM():
+    
+    """
+    A finite state machine (FSM) a graph made of states (vertices) and a connectivity matrix (transitionTable).
+    If the FSM is at state s0, then on input (trigger) i, it will emmit an output e, and transition from state 
+    s0 (the present state) to a next state, determined by the transitionTable.
+    An initialState has to be given so that we know how to start.
+    
+    """
     def __init__(self, states, triggers, outputTable, transitionTable, initialState):
-        
-        
         # Safety: all triggers must be of the same fixed length
         fixedLength = len(triggers[0])
         assert all(len(t) == fixedLength for t in triggers)
-        
+    
         self.numberOfStates = len(states)
         self.stepSize = fixedLength
         self.transitionTable = transitionTable
         self.outputTable = outputTable
+        # Enumerate the possible triggers according to the order they were given.
         self.triggerDictionary = self.generateDictionary(triggers)
+        # Enumerate the possible states according to the order they were given.
         self.stateDictionary = self.generateDictionary(states)
         self.presentState = initialState
         self.presentStateCoordinate = initialState
@@ -43,14 +51,16 @@ class FSM():
         return newDictionary
     
     def step(self, trigger):
-        output = 'Fail'
+        #Init output
+        output = ''
+        #Get the number of the trigger
         triggerCoordinate = self.triggerDictionary[str(trigger)]
+        #Get the output from the outputTable, matching to the number of state we are in and the number of the trigger.
         output = self.outputTable[self.presentStateCoordinate][triggerCoordinate]
         nextState = self.transitionTable[self.presentStateCoordinate, triggerCoordinate]
         nextStateCoordinate = self.stateDictionary[str(nextState)]
         self.presentState = nextState
         self.presentStateCoordinate = nextStateCoordinate
-        #outputSerialized = 
         return output
     
     def getNextPossibleStates(self, state):
@@ -73,7 +83,11 @@ def trellisGraphics(numberOfStates):
     
     
 def convolutionalEncoder(streamIn, FSM, graphics = False):
-    
+    """
+    streamIn is a stream of (symbols). There is no safety over their content validity,
+    but we do verify that the stream of symbols could be chopped into an integer number of triggers.
+    For example: if the stream is made of bits, and we need 5 bits per trigger, then the stream has to have length = 5*k for some k.
+    """
     assert FSM.checkStreamLength(len(streamIn)) == 'OK' , "Input to convolutional encoder must be an integer multiple of FSM.numberOfBitsIn"
     numberOfSteps = len(streamIn) // FSM.stepSize
     i = 0
@@ -104,7 +118,7 @@ class path():
     def presentScore(self):
         return self.currentScore
     
-    def step(self, extension):
+    def appendToPath(self, extension):
         nextState = extension[0]
         trigger = extension[1]
         addedScore = extension[2]
@@ -126,6 +140,9 @@ def viterbiDecoder(numberOfStates, initialState, scoreFunction, observedSequence
     # More explanations on the Viterbi decoder are found on page 473 of the same book.
     # A metric function (!) that accepts a set of states p, next state q and observed stream r,
     # and returns the branch metric present state, next state and returns 
+    
+    # There is no safety of the content of the observedSequence, but the observedSequence has to be chopped into observable state transitions.
+    # This means that *this version of the Viterbi decoder does not support insertions or deletions.
     assert len(observedSequence) % symbolsPerStateTransition == 0
     newPath = path(initialState)
     paths = [newPath]
@@ -138,17 +155,21 @@ def viterbiDecoder(numberOfStates, initialState, scoreFunction, observedSequence
         newPaths = []
         
         for p in paths:
+            # Omer Sella: fix the line below - a scorFunction is expected to give a number, not a triplet.
+            
             extensions = scoreFunction(p.presentState(), observedOutput, i)
             
             for extension in extensions:
                 #print(extension)    
                 newPath = path(0)
                 newPath = copy.deepcopy(p)
-                newPath.step(extension)
+                newPath.appendToPath(extension)
                 #print(newPath.traveresedStates)
                 newPaths.append(newPath)
         paths = newPaths
+        #Omer Sella: Here we need to do pruning, i.e.: getting rid of costly candidates.
         i = i + 1
+    #Omer Sella: Viterbi is supposed to return the original input, it could also return paths.
     return paths
     
 def genericScoreFunction(myFSM, presentState, observedOutput, timeStep, additionalInformation):
