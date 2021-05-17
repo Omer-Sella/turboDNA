@@ -6,7 +6,7 @@ Created on Thu Feb  4 10:09:53 2021
 """
 import numpy as np
 import copy
-
+BIG_NUMBER = np.Inf
 
 
 class FSM():
@@ -23,12 +23,14 @@ class FSM():
         fixedLength = len(triggers[0])
         assert all(len(t) == fixedLength for t in triggers)
     
+        self.triggers = triggers
         self.numberOfStates = len(states)
         self.stepSize = fixedLength
         self.transitionTable = transitionTable
         self.outputTable = outputTable
         # Enumerate the possible triggers according to the order they were given.
         self.triggerDictionary = self.generateDictionary(triggers)
+        
         # Enumerate the possible states according to the order they were given.
         self.stateDictionary = self.generateDictionary(states)
         self.presentState = initialState
@@ -82,7 +84,7 @@ def trellisGraphics(numberOfStates):
     plt.show()    
     
     
-def convolutionalEncoder(streamIn, FSM, graphics = False):
+def FSMEncoder(streamIn, FSM, graphics = False):
     """
     streamIn is a stream of (symbols). There is no safety over their content validity,
     but we do verify that the stream of symbols could be chopped into an integer number of triggers.
@@ -111,23 +113,24 @@ class path():
         self.scores = [0]
         self.presentScore = 0
         self.pathTriggers = []
+        self.pathEmitted = []
         
     def presentState(self):
         return self.traversedStates[-1]
     
-    def presentScore(self):
-        return self.currentScore
     
     def appendToPath(self, extension):
         nextState = extension[0]
         trigger = extension[1]
-        addedScore = extension[2]
+        nextOutput = extension[2]
+        addedScore = extension[3]
         print("*** before step:")
         print("*** " + str(self.pathTriggers))
         print("*** " + str(self.traversedStates))
         print("*** ")
         print("*** ")
         self.pathTriggers.append(trigger)
+        self.pathEmitted.append(nextOutput)
         self.scores.append(addedScore)
         self.traversedStates.append(nextState)   
         self.presentScore = self.presentScore + addedScore
@@ -135,7 +138,7 @@ class path():
         
 
 
-def viterbiDecoder(numberOfStates, initialState, scoreFunction, observedSequence, symbolsPerStateTransition):
+def viterbiDecoder(numberOfStates, initialState, fanOutFunction, observedSequence, symbolsPerStateTransition):
     # Viterbi decoder inspired by the implementation suggested by Todd K. Moon, programming laboratory 10, page 528.
     # More explanations on the Viterbi decoder are found on page 473 of the same book.
     # A metric function (!) that accepts a set of states p, next state q and observed stream r,
@@ -147,17 +150,17 @@ def viterbiDecoder(numberOfStates, initialState, scoreFunction, observedSequence
     newPath = path(initialState)
     paths = [newPath]
     i = 0
+    
     while i < len(observedSequence) // symbolsPerStateTransition:
         print("*** i is :")
         print(i)
         observedOutput = observedSequence[i * symbolsPerStateTransition : (i + 1) * symbolsPerStateTransition]
         print(observedOutput)
         newPaths = []
-        
         for p in paths:
             # Omer Sella: fix the line below - a scorFunction is expected to give a number, not a triplet.
             
-            extensions = scoreFunction(p.presentState(), observedOutput, i)
+            extensions = fanOutFunction(p.presentState(), observedOutput, i)
             
             for extension in extensions:
                 #print(extension)    
@@ -167,31 +170,48 @@ def viterbiDecoder(numberOfStates, initialState, scoreFunction, observedSequence
                 #print(newPath.traveresedStates)
                 newPaths.append(newPath)
         paths = newPaths
-        #Omer Sella: Here we need to do pruning, i.e.: getting rid of costly candidates.
+        #Omer Sella: Here there is usually pruning, i.e.: getting rid of costly candidates, but not in this version.
         i = i + 1
-    #Omer Sella: Viterbi is supposed to return the original input, it could also return paths.
-    return paths
     
-def genericScoreFunction(myFSM, presentState, observedOutput, timeStep, additionalInformation):
+    #Omer Sella: Now let's find "the" most likely path, which is the that has the LOWEST score (so score is like loss)
+    lowestScore  = BIG_NUMBER
+    numberOfEquallyMostLikely = 1
+    for p in paths:
+        if p.presentScore < lowestScore:
+            lowestScore = p.presentScore
+            mostLikelyPath = p
+        else:
+            if p.presentScore == lowestScore:
+                numberOfEquallyMostLikely = numberOfEquallyMostLikely + 1
+
+    # Omer Sella: Viterbi is supposed to return the original input, it could also return paths
+    # So we first return the most likely path, if there is more than one then numberOfEquallyMostLikely will be > 1
+    # Then we return all paths 
+    return mostLikelyPath, numberOfEquallyMostLikely, paths
+    
+def genericFanOutFunction(myFSM, presentState, observedOutput, timeStep, additionalInformation):
     # some useful distances in this package, we may want to try and use it.
     from scipy.spatial import distance
     nextPossibleStates = myFSM.getNextPossibleStates(presentState)
     nextPossibleOutputs = myFSM.getNextPossibleOutputs(presentState)
+    triggers = myFSM.triggers
     extensions = []    
     nextPossibleScores = []
     for output in nextPossibleOutputs:
         # compute the score of output with respect to the observedOutput
-        #print("*** output is:")
-        #print(output)
-        #print("*** observedOutput is:")
-        #print(observedOutput)
-        score = 1 - distance.hamming(output, observedOutput)
+        # print("*** output is:")
+        # print(output)
+        # print("*** observedOutput is:")
+        # print(observedOutput)
+        # Omer Sella: scipy.distance.hamming(x,y) return number_of_coordinates_where_different / number_of_coordinates. Sequences must have identical length.
+        score = distance.hamming(output, observedOutput)
+        print(score)
         nextPossibleScores.append(score)
     extensions = []
     # Omer Sella: safety
     assert (len(nextPossibleStates) == len(nextPossibleOutputs))
     for i in range(len(nextPossibleStates)):
-        extensions.append( [nextPossibleStates[i], nextPossibleOutputs[i], nextPossibleScores[i]])
+        extensions.append( [nextPossibleStates[i], triggers[i], nextPossibleOutputs[i], nextPossibleScores[i]])
     #print("*** extensions are: ")
     #print(extensions)
     return extensions
@@ -213,19 +233,20 @@ def exampleTwoThirdsConvolutional():
     initialState = 0
     myFSM = FSM(states, triggers, outputTable, nextStateTable, initialState)
     stream = np.random.randint(0,2,10)
-    encodedStream = convolutionalEncoder(stream, myFSM)
+    encodedStream = FSMEncoder(stream, myFSM)
 
     flatStream = []
     for sublist in encodedStream:
         for item in sublist:
             flatStream.append(item)
 
-    def myScoreFunction(state, observation, time):
-        return genericScoreFunction(myFSM, state, observation, time, None)
+    def myFanOutFunction(state, observation, time):
+        return genericFanOutFunction(myFSM, state, observation, time, None)
 
-    paths = viterbiDecoder(8, 0, myScoreFunction, flatStream, 3)
+    mostLikelyPath, numberOfEquallyLikelyPaths, paths = viterbiDecoder(8, 0, myFanOutFunction, flatStream, 3)
 
-    return encodedStream, paths
+
+    return stream, encodedStream, paths, mostLikelyPath, numberOfEquallyLikelyPaths
 
 def testConvolutional_2_3():
     status = 'Not working'
@@ -234,4 +255,7 @@ def testConvolutional_2_3():
         status = 'OK'
     return status
 
-es, paths = exampleTwoThirdsConvolutional()
+stream, encodedStream, paths, mostLikelyPath, numberOfEquallyLikelyPaths = exampleTwoThirdsConvolutional()
+
+if __name__ == '__main__':
+    stream, encodedStream, paths, mostLikelyPath, numberOfEquallyLikelyPaths = exampleTwoThirdsConvolutional()
