@@ -250,7 +250,7 @@ def exampleTwoThirdsConvolutional():
 
 def testConvolutional_2_3():
     status = 'Not working'
-    stream, encodedStream = exampleTwoThirdsConvolutional()
+    stream, encodedStream, paths, mostLikelyPath, numberOfEquallyLikelyPaths = exampleTwoThirdsConvolutional()
     if len(encodedStream) == len(stream)//2:
         status = 'OK'
     return status
