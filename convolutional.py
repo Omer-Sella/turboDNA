@@ -124,11 +124,11 @@ class path():
         trigger = extension[1]
         nextOutput = extension[2]
         addedScore = extension[3]
-        print("*** before step:")
-        print("*** " + str(self.pathTriggers))
-        print("*** " + str(self.traversedStates))
-        print("*** ")
-        print("*** ")
+        #print("*** before step:")
+        #print("*** " + str(self.pathTriggers))
+        #print("*** " + str(self.traversedStates))
+        #print("*** ")
+        #print("*** ")
         self.pathTriggers.append(trigger)
         self.pathEmitted.append(nextOutput)
         self.scores.append(addedScore)
@@ -152,7 +152,7 @@ def viterbiDecoder(numberOfStates, initialState, fanOutFunction, observedSequenc
     i = 0
     
     while i < len(observedSequence) // symbolsPerStateTransition:
-        print("*** i is :")
+        #print("*** i is :")
         print(i)
         observedOutput = observedSequence[i * symbolsPerStateTransition : (i + 1) * symbolsPerStateTransition]
         print(observedOutput)
@@ -187,6 +187,7 @@ def viterbiDecoder(numberOfStates, initialState, fanOutFunction, observedSequenc
     # Omer Sella: Viterbi is supposed to return the original input, it could also return paths
     # So we first return the most likely path, if there is more than one then numberOfEquallyMostLikely will be > 1
     # Then we return all paths 
+    # BUG: numberOfEquallyLikelyPaths should be 1 if no errors.
     return mostLikelyPath, numberOfEquallyMostLikely, paths
     
 def genericFanOutFunction(myFSM, presentState, observedOutput, timeStep, additionalInformation):
@@ -220,7 +221,9 @@ def genericFanOutFunction(myFSM, presentState, observedOutput, timeStep, additio
     
 def exampleTwoThirdsConvolutional():
     states = [0,1,2,3,4,5,6,7]
+    # Omer Sella: triggers are the raw data that we want to encode, post processing i.e.: chopped into blocks that the FSM likes (2 bits in our case).
     triggers = [[0,0], [0,1], [1,0], [1,1]]
+    #Bug: the triggers came out as: [[0, 0], [1, 1], [1, 1], [0, 0], [0, 1]]
     nextStateTable = np.array([[0,1,2,3], [4,5,6,7], [1,0,3,2], [5,4,7,6], [2,3,0,1], [6,7,4,5] , [3,2,1,0], [7,6,5,4] ])
     outputTable = [[[0,0,0], [1,0,0], [0,1,0], [1,1,0]], 
                    [[0,0,1], [1,0,1], [0,1,1], [1,1,1]],
@@ -235,6 +238,7 @@ def exampleTwoThirdsConvolutional():
     stream = np.random.randint(0,2,10)
     encodedStream = FSMEncoder(stream, myFSM)
 
+    # Omer Sella: flatStream gives you the un-chopped encoded stream
     flatStream = []
     for sublist in encodedStream:
         for item in sublist:

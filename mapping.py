@@ -219,8 +219,9 @@ def subSequenceGraphics(subSequences, occurances):
     plt.show()
 
 
-def dnaToBinary(input, outputFilename = None):
+def dnaToBinary(input, outputFileName = None):
     """
+    sample input ACTGAAACCTGA
     Convert DNA text into binary. If outputFileName is given save to file.
     input is assumed to be a list object so input[i] is a DNA strand, and input[i][j] is the j'th nucleotide of strand i.
     """
@@ -254,6 +255,6 @@ def dnaToBinary(input, outputFilename = None):
         binaryLinesText.append(newBinarySequence)
         binaryLinesNumerical.append(newBinaryArray)
         if outputFilename is not None:
-            with open(outputFilename, "a+") as fid:
+            with open(outputFileName, "a+") as fid:
                 fid.write(binarySequence + "\n")
     return status, binaryLinesText, binaryLinesNumerical
