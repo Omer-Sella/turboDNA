@@ -216,6 +216,61 @@ def genericFanOutFunction(myFSM, presentState, observedOutput, timeStep, additio
     return extensions
 
 
+def viterbiDecoderWithFlagging(numberOfStates, initialState, fanOutFunction, observedSequence, symbolsPerStateTransition):
+    # Viterbi decoder inspired by the implementation suggested by Todd K. Moon, programming laboratory 10, page 528.
+    # More explanations on the Viterbi decoder are found on page 473 of the same book.
+    # A metric function (!) that accepts a set of states p, next state q and observed stream r,
+    # and returns the branch metric present state, next state and returns 
+    
+    # There is no safety of the content of the observedSequence, but the observedSequence has to be chopped into observable state transitions.
+    # This means that *this version of the Viterbi decoder does not support insertions or deletions.
+    assert len(observedSequence) % symbolsPerStateTransition == 0
+    newPath = path(initialState)
+    paths = [newPath]
+    i = 0
+    scoreVector = np.ones(numberOfStates) * BIG_NUMBER
+    numberOfEquallyLikelyPathsVector = np.zeros(numberOfStates)
+    while i < (len(observedSequence) // symbolsPerStateTransition):
+        observedOutput = observedSequence[i * symbolsPerStateTransition : (i + 1) * symbolsPerStateTransition]
+        newPaths = []
+        for p in paths:
+            extensions = fanOutFunction(p.presentState(), observedOutput, i)
+            for extension in extensions:
+                newPath = path(0)
+                newPath = copy.deepcopy(p)
+                newPath.appendToPath(extension)
+                newPaths.append(newPath)
+        paths = newPaths
+        i = i + 1
+
+       
+        for s in range(numberOfStates):
+            scores = []
+            scoreVector[s] = BIG_NUMBER
+            for p in paths:
+                if p.presentState() == s:
+                    scores.append(p.presentScore)
+            if len(scores) > 0:
+                lowestScoreForThisState = min(scores)
+                scoreVector[s] = lowestScoreForThisState
+                numberOfEquallyLikelyPathsVector[s] = scores.count(lowestScoreForThisState)
+                for p in paths:
+                    if p.presentState() == s:
+                        if p.presentScore > lowestScoreForThisState:
+                            paths.remove(p)
+            
+    lowestScore = min(scoreVector)
+    mostLikelyPaths = []
+    for p in paths:
+        if p.presentScore == lowestScore:
+            mostLikelyPaths.append(p)
+    # Omer Sella: Viterbi is supposed to return the original input, it could also return paths
+    # So we first return the most likely path, if there is more than one then numberOfEquallyMostLikely will be > 1
+    # Then we return all paths 
+    # BUG: numberOfEquallyLikelyPaths should be 1 if no errors.
+    return mostLikelyPaths, scoreVector, numberOfEquallyLikelyPathsVector, paths
+
+
     
 def exampleTwoThirdsConvolutional():
     states = [0,1,2,3,4,5,6,7]
@@ -246,19 +301,61 @@ def exampleTwoThirdsConvolutional():
         return genericFanOutFunction(myFSM, state, observation, time, None)
 
     mostLikelyPath, numberOfEquallyLikelyPaths, paths = viterbiDecoder(8, 0, myFanOutFunction, flatStream, 3)
+    mostLikelyPaths, scoreVector, numberOfEquallyLikelyPathsVector, pathsWithFlagging = viterbiDecoderWithFlagging(8, 0, myFanOutFunction, flatStream, 3)
 
-
-    return stream, encodedStream, paths, mostLikelyPath, numberOfEquallyLikelyPaths
+    return stream, encodedStream, paths, mostLikelyPath, numberOfEquallyLikelyPaths, mostLikelyPaths, scoreVector, numberOfEquallyLikelyPathsVector, pathsWithFlagging
 
 def testConvolutional_2_3():
     status = 'OK'
-    stream, encodedStream, paths, mostLikelyPath, numberOfEquallyLikelyPaths = exampleTwoThirdsConvolutional()
+    stream, encodedStream, paths, mostLikelyPath, numberOfEquallyLikelyPaths, mostLikelyPaths, scoreVector, numberOfEquallyLikelyPathsVector, pathsWithFlagging = exampleTwoThirdsConvolutional()
     if len(encodedStream) != len(stream)//2:
         status = 'FAIL'
     if mostLikelyPath.pathEmitted != encodedStream:
         status = 'FAIL'
+    if len(mostLikelyPaths) > 1:
+        status = 'FAIL'
+    if mostLikelyPaths[0].presentScore != mostLikelyPath.presentScore:
+        status = 'FAIL'
+
     return status
 
+def testViterbiBitFlip():
+    states = [0,1,2,3,4,5,6,7]
+    # Omer Sella: triggers are the raw data that we want to encode, post processing i.e.: chopped into blocks that the FSM likes (2 bits in our case).
+    triggers = [[0,0], [0,1], [1,0], [1,1]]
+    #Bug: the triggers came out as: [[0, 0], [1, 1], [1, 1], [0, 0], [0, 1]]
+    nextStateTable = np.array([[0,1,2,3], [4,5,6,7], [1,0,3,2], [5,4,7,6], [2,3,0,1], [6,7,4,5] , [3,2,1,0], [7,6,5,4] ])
+    outputTable = [[[0,0,0], [1,0,0], [0,1,0], [1,1,0]], 
+                   [[0,0,1], [1,0,1], [0,1,1], [1,1,1]],
+                   [[1,0,0], [0,0,0], [1,1,0], [0,1,0]],
+                   [[1,0,1], [0,0,1], [1,1,1], [0,1,1]],
+                   [[0,1,0], [1,1,0], [0,0,0], [1,0,0]],
+                   [[0,1,1], [1,1,1], [0,0,1], [1,0,1]],
+                   [[1,1,0], [0,1,0], [1,0,0], [0,0,0]],
+                   [[1,1,1], [0,1,1], [1,0,1], [0,0,1]]]
+    initialState = 0
+    myFSM = FSM(states, triggers, outputTable, nextStateTable, initialState)
+    stream = np.random.randint(0,2,10)
+    encodedStream = FSMEncoder(stream, myFSM)
+
+    # Omer Sella: flatStream gives you the un-chopped encoded stream
+    flatStream = []
+    for sublist in encodedStream:
+        for item in sublist:
+            flatStream.append(item)
+
+    ############# Omer Sella: Now we flip a single bit
+    corruptStream = copy.deepcopy(flatStream)
+    corruptStream[0] = 1 - corruptStream[0]
+
+    def myFanOutFunction(state, observation, time):
+        return genericFanOutFunction(myFSM, state, observation, time, None)
+
+    mostLikelyPath, numberOfEquallyLikelyPaths, paths = viterbiDecoder(8, 0, myFanOutFunction, corruptStream, 3)
+    mostLikelyPathsF, scoreVectorF, numberOfEquallyLikelyPathsVectorF, pathsWithFlaggingF = viterbiDecoderWithFlagging(8, 0, myFanOutFunction, flatStream, 3)
+
+    return stream, encodedStream, corruptStream, mostLikelyPath, numberOfEquallyLikelyPaths, paths, mostLikelyPathsF, scoreVectorF, numberOfEquallyLikelyPathsVectorF, pathsWithFlaggingF
 
 if __name__ == '__main__':
-    stream, encodedStream, paths, mostLikelyPath, numberOfEquallyLikelyPaths = exampleTwoThirdsConvolutional()
+    #stream, encodedStream, paths, mostLikelyPath, numberOfEquallyLikelyPaths, mostLikelyPaths, scoreVector, numberOfEquallyLikelyPathsVector, pathsWithFlagging = exampleTwoThirdsConvolutional()
+    stream, encodedStream, corruptStream, mlPath, n, pathsAfterCorruption, mostLikelyPathsF, scoreVectorF, numberOfEquallyLikelyPathsVectorF, pathsWithFlaggingF  = testViterbiBitFlip()
