@@ -271,7 +271,33 @@ def viterbiDecoderWithFlagging(numberOfStates, initialState, fanOutFunction, obs
     return mostLikelyPaths, scoreVector, numberOfEquallyLikelyPathsVector, paths
 
 
-    
+def exampleOneHalfConvolutional():
+    states = [0,1,2,3]
+    triggers = [[0], [1]]
+    nextStateTable = np.array([[0,1], [2,3], [0,1], [2,3]])
+    outputTable = [[[0,0], [1,1]],
+                   [[0,1], [1,0]],
+                   [[1,1], [0,0]],
+                   [[1,0], [0,1]]]
+    symbolSize = 2
+    initialState = 0
+    myFSM = FSM(states, triggers, outputTable, nextStateTable, initialState)
+    stream = stream = np.random.randint(0,2,10)
+    encodedStream = FSMEncoder(stream, myFSM)
+    print(encodedStream)
+    flatStream = []
+    for sublist in encodedStream:
+        for item in sublist:
+            flatStream.append(item)
+    print(flatStream)
+    def myFanOutFunction(state, observation, time):
+        return genericFanOutFunction(myFSM, state, observation, time, None)
+
+    mostLikelyPaths, scoreVector, numberOfEquallyLikelyPathsVector, pathsWithFlagging = viterbiDecoderWithFlagging(len(states), initialState, myFanOutFunction, flatStream, symbolSize)
+
+    return stream, encodedStream, mostLikelyPaths, scoreVector, numberOfEquallyLikelyPathsVector, pathsWithFlagging
+
+
 def exampleTwoThirdsConvolutional():
     states = [0,1,2,3,4,5,6,7]
     # Omer Sella: triggers are the raw data that we want to encode, post processing i.e.: chopped into blocks that the FSM likes (2 bits in our case).
@@ -290,13 +316,14 @@ def exampleTwoThirdsConvolutional():
     myFSM = FSM(states, triggers, outputTable, nextStateTable, initialState)
     stream = np.random.randint(0,2,10)
     encodedStream = FSMEncoder(stream, myFSM)
+    
 
     # Omer Sella: flatStream gives you the un-chopped encoded stream
     flatStream = []
     for sublist in encodedStream:
         for item in sublist:
             flatStream.append(item)
-
+    
     def myFanOutFunction(state, observation, time):
         return genericFanOutFunction(myFSM, state, observation, time, None)
 
@@ -358,4 +385,5 @@ def testViterbiBitFlip():
 
 if __name__ == '__main__':
     #stream, encodedStream, paths, mostLikelyPath, numberOfEquallyLikelyPaths, mostLikelyPaths, scoreVector, numberOfEquallyLikelyPathsVector, pathsWithFlagging = exampleTwoThirdsConvolutional()
-    stream, encodedStream, corruptStream, mlPath, n, pathsAfterCorruption, mostLikelyPathsF, scoreVectorF, numberOfEquallyLikelyPathsVectorF, pathsWithFlaggingF  = testViterbiBitFlip()
+    #stream, encodedStream, corruptStream, mlPath, n, pathsAfterCorruption, mostLikelyPathsF, scoreVectorF, numberOfEquallyLikelyPathsVectorF, pathsWithFlaggingF  = testViterbiBitFlip()
+    stream, encodedStream, mostLikelyPaths, scoreVector, numberOfEquallyLikelyPathsVector, pathsWithFlagging = exampleOneHalfConvolutional()
