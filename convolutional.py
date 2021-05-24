@@ -6,7 +6,7 @@ Created on Thu Feb  4 10:09:53 2021
 """
 import numpy as np
 import copy
-BIG_NUMBER = np.Inf
+BIG_NUMBER = 1000000 #np.Inf
 
 
 class FSM():
@@ -98,9 +98,9 @@ def FSMEncoder(streamIn, FSM, graphics = False):
         trigger = streamIn[i * FSM.stepSize: (i + 1) * FSM.stepSize]
         #print(trigger)
         trigger = list(trigger)
-        print(trigger)
+        #print(trigger)
         output = FSM.step(trigger)
-        print(output)
+        #print(output)
         encodedStream.append(output)
         i = i + 1
         #print(encodedStream)
@@ -153,15 +153,12 @@ def viterbiDecoder(numberOfStates, initialState, fanOutFunction, observedSequenc
     
     while i < len(observedSequence) // symbolsPerStateTransition:
         #print("*** i is :")
-        print(i)
+        #print(i)
         observedOutput = observedSequence[i * symbolsPerStateTransition : (i + 1) * symbolsPerStateTransition]
-        print(observedOutput)
+        #print(observedOutput)
         newPaths = []
         for p in paths:
-            # Omer Sella: fix the line below - a scorFunction is expected to give a number, not a triplet.
-            
             extensions = fanOutFunction(p.presentState(), observedOutput, i)
-            
             for extension in extensions:
                 #print(extension)    
                 newPath = path(0)
@@ -206,7 +203,7 @@ def genericFanOutFunction(myFSM, presentState, observedOutput, timeStep, additio
         # print(observedOutput)
         # Omer Sella: scipy.distance.hamming(x,y) return number_of_coordinates_where_different / number_of_coordinates. Sequences must have identical length.
         score = distance.hamming(output, observedOutput)
-        print(score)
+        #print(score)
         nextPossibleScores.append(score)
     extensions = []
     # Omer Sella: safety
@@ -255,8 +252,10 @@ def exampleTwoThirdsConvolutional():
 def testConvolutional_2_3():
     status = 'Not working'
     stream, encodedStream, paths, mostLikelyPath, numberOfEquallyLikelyPaths = exampleTwoThirdsConvolutional()
-    if len(encodedStream) == len(stream)//2:
-        status = 'OK'
+    if len(encodedStream) != len(stream)//2:
+        status = 'FAIL'
+    if mostLikelyPath.pathEmitted != encodedStream:
+        status = 'FAIL'
     return status
 
 stream, encodedStream, paths, mostLikelyPath, numberOfEquallyLikelyPaths = exampleTwoThirdsConvolutional()
