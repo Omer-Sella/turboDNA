@@ -6,6 +6,7 @@ Created on Thu Feb  4 10:09:53 2021
 """
 import numpy as np
 import copy
+import matplotlib.pyplot as plt
 BIG_NUMBER = 1000000 #np.Inf
 
 
@@ -73,16 +74,22 @@ class FSM():
         nextOutputs = self.outputTable[state]
         return nextOutputs
     
-def trellisGraphics(numberOfStates):
-    # Omer Sella: still under construction
+def trellisGraphics(numberOfStates, time, stateTraversalList):
     states = np.arange(numberOfStates)                
-    timeStamp = np.ones(self.numberOfStates)
-    colours = np.arange(self.numberOfStates)
-    sizeOfState = 4
+    timeAxis = np.arange(0,time)
+    statesTiled = np.tile(states, time)
+    timeRepeat = np.repeat(timeAxis, numberOfStates)
     fig, ax = plt.subplots()
-    scatter = ax.scatter(states, timeStampe, c=colours, s=sizeOfState)
-    plt.show()    
-    
+    ax.set_yticks(states)
+    ax.set_ylabel('States')
+    ax.set_xlabel('Received symbols')
+    ax.set_title('Path traversal')
+    scatter = ax.scatter(timeRepeat, statesTiled)
+    for t in stateTraversalList:
+        pathTime = np.arange(0, len(t))
+        plot = ax.plot(np.arange(0,len(t)), t)
+    plt.show()
+    return
     
 def FSMEncoder(streamIn, FSM, graphics = False):
     """
@@ -216,7 +223,7 @@ def genericFanOutFunction(myFSM, presentState, observedOutput, timeStep, additio
     return extensions
 
 
-def viterbiDecoderWithFlagging(numberOfStates, initialState, fanOutFunction, observedSequence, symbolsPerStateTransition):
+def viterbiDecoderWithFlagging(numberOfStates, initialState, fanOutFunction, observedSequence, symbolsPerStateTransition, produceGraphics = True):
     # Viterbi decoder inspired by the implementation suggested by Todd K. Moon, programming laboratory 10, page 528.
     # More explanations on the Viterbi decoder are found on page 473 of the same book.
     # A metric function (!) that accepts a set of states p, next state q and observed stream r,
@@ -258,6 +265,13 @@ def viterbiDecoderWithFlagging(numberOfStates, initialState, fanOutFunction, obs
                     if p.presentState() == s:
                         if p.presentScore > lowestScoreForThisState:
                             paths.remove(p)
+        if produceGraphics:
+            stateTraversalList = []
+            for p in paths:
+                stateTraversalList.append(p.traversedStates)
+            trellisGraphics(numberOfStates, (len(observedSequence) // symbolsPerStateTransition), stateTraversalList)
+
+
             
     lowestScore = min(scoreVector)
     mostLikelyPaths = []
