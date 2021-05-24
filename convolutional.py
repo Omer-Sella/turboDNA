@@ -150,36 +150,37 @@ def viterbiDecoder(numberOfStates, initialState, fanOutFunction, observedSequenc
     newPath = path(initialState)
     paths = [newPath]
     i = 0
-    
-    while i < len(observedSequence) // symbolsPerStateTransition:
-        #print("*** i is :")
-        #print(i)
+    while i < (len(observedSequence) // symbolsPerStateTransition):
         observedOutput = observedSequence[i * symbolsPerStateTransition : (i + 1) * symbolsPerStateTransition]
-        #print(observedOutput)
         newPaths = []
         for p in paths:
             extensions = fanOutFunction(p.presentState(), observedOutput, i)
             for extension in extensions:
-                #print(extension)    
                 newPath = path(0)
                 newPath = copy.deepcopy(p)
                 newPath.appendToPath(extension)
-                #print(newPath.traveresedStates)
                 newPaths.append(newPath)
         paths = newPaths
         #Omer Sella: Here there is usually pruning, i.e.: getting rid of costly candidates, but not in this version.
         i = i + 1
-    
+
+       
     #Omer Sella: Now let's find "the" most likely path, which is the that has the LOWEST score (so score is like loss)
     lowestScore  = BIG_NUMBER
     numberOfEquallyMostLikely = 1
     for p in paths:
         if p.presentScore < lowestScore:
+            # New lowest score path found !
+            # Set the lowest score to the new lowest score
             lowestScore = p.presentScore
+            # Set ost likely path pointer to this path
             mostLikelyPath = p
+            # Omer Sella: bug fix: if a "lowest score path" was found, then reset the number of of equally likely paths to 1
+            numberOfEquallyMostLikely = 1
         else:
             if p.presentScore == lowestScore:
                 numberOfEquallyMostLikely = numberOfEquallyMostLikely + 1
+                
 
     # Omer Sella: Viterbi is supposed to return the original input, it could also return paths
     # So we first return the most likely path, if there is more than one then numberOfEquallyMostLikely will be > 1
@@ -208,8 +209,8 @@ def genericFanOutFunction(myFSM, presentState, observedOutput, timeStep, additio
     extensions = []
     # Omer Sella: safety
     assert (len(nextPossibleStates) == len(nextPossibleOutputs))
-    for i in range(len(nextPossibleStates)):
-        extensions.append( [nextPossibleStates[i], triggers[i], nextPossibleOutputs[i], nextPossibleScores[i]])
+    for idx in range(len(nextPossibleStates)):
+        extensions.append( [nextPossibleStates[idx], triggers[idx], nextPossibleOutputs[idx], nextPossibleScores[idx]])
     #print("*** extensions are: ")
     #print(extensions)
     return extensions
@@ -250,7 +251,7 @@ def exampleTwoThirdsConvolutional():
     return stream, encodedStream, paths, mostLikelyPath, numberOfEquallyLikelyPaths
 
 def testConvolutional_2_3():
-    status = 'Not working'
+    status = 'OK'
     stream, encodedStream, paths, mostLikelyPath, numberOfEquallyLikelyPaths = exampleTwoThirdsConvolutional()
     if len(encodedStream) != len(stream)//2:
         status = 'FAIL'
@@ -258,7 +259,6 @@ def testConvolutional_2_3():
         status = 'FAIL'
     return status
 
-stream, encodedStream, paths, mostLikelyPath, numberOfEquallyLikelyPaths = exampleTwoThirdsConvolutional()
 
 if __name__ == '__main__':
     stream, encodedStream, paths, mostLikelyPath, numberOfEquallyLikelyPaths = exampleTwoThirdsConvolutional()
