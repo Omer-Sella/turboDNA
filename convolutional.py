@@ -257,6 +257,7 @@ def viterbiDecoderWithFlagging(numberOfStates, initialState, fanOutFunction, obs
                 newPaths.append(newPath)
         paths = newPaths
        
+        # Now we discard unlikely paths
         for s in range(numberOfStates):
             scores = []
             scoreVector[s] = BIG_NUMBER
@@ -275,6 +276,7 @@ def viterbiDecoderWithFlagging(numberOfStates, initialState, fanOutFunction, obs
         #print("***most likely vector is: " + str(numberOfEquallyLikelyPathsVector))
         #print("***score vector is: " + str(scoreVector))
         
+        # Omer Sella: the following line is just a guess based on observations
         if np.sum(numberOfEquallyLikelyPathsVector) > 2 * numberOfStates and indelFlag == False:
             indelFlag = True
             indelEstimatedLocation = i
@@ -282,12 +284,9 @@ def viterbiDecoderWithFlagging(numberOfStates, initialState, fanOutFunction, obs
             stateTraversalList = []
             for p in paths:
                 stateTraversalList.append(p.traversedStates)
-            trellisGraphics(numberOfStates, (len(observedSequence) // symbolsPerStateTransition), stateTraversalList, scoreVector)
-        
+            trellisGraphics(numberOfStates, (len(observedSequence) // symbolsPerStateTransition), stateTraversalList, numberOfEquallyLikelyPathsVector)#scoreVector)
         i = i + 1
-
-
-            
+           
     lowestScore = min(scoreVector)
     mostLikelyPaths = []
     for p in paths:
@@ -438,13 +437,14 @@ def testViterbiDeletion():
         for item in sublist:
             flatStream.append(item)
 
-    ############# Omer Sella: Now we delete the third bit and place a 0 at the end
+    ############# Omer Sella: Now we delete some bits and pad with 0s at the end
     corruptStream = np.zeros(len(flatStream), dtype = np.int32)
     
     deletionLocation = 2
     numberOfBitsDeleted = 2
     corruptStream[0 : deletionLocation] =  flatStream[0 : deletionLocation]
     corruptStream[deletionLocation : len(flatStream)] = np.roll(flatStream[deletionLocation : ],  - numberOfBitsDeleted)
+    
     corruptStream[len(flatStream) - numberOfBitsDeleted : len(flatStream)] = 0
     print(len(flatStream))
     print(len(corruptStream))
@@ -453,7 +453,9 @@ def testViterbiDeletion():
     def myFanOutFunction(state, observation, time):
         return genericFanOutFunction(myFSM, state, observation, time, None)
 
-    mostLikelyPathsF, scoreVectorF, numberOfEquallyLikelyPathsVectorF, pathsWithFlaggingF, indelFlag, indelEstimatedLocation = viterbiDecoderWithFlagging(8, 0, myFanOutFunction, corruptStream, 3, produceGraphics = False)
+    #mostLikelyPathsF, scoreVectorF, numberOfEquallyLikelyPathsVectorF, pathsWithFlaggingF, indelFlag, indelEstimatedLocation = viterbiDecoderWithFlagging(8, 0, myFanOutFunction, flatStream, 3, produceGraphics = True)
+    # Omer Sella: the line below is WITH a deletion sent to viterbi
+    mostLikelyPathsF, scoreVectorF, numberOfEquallyLikelyPathsVectorF, pathsWithFlaggingF, indelFlag, indelEstimatedLocation = viterbiDecoderWithFlagging(8, 0, myFanOutFunction, corruptStream, 3, produceGraphics = True)
 
     return stream, encodedStream, flatStream, corruptStream, mostLikelyPathsF, scoreVectorF, numberOfEquallyLikelyPathsVectorF, pathsWithFlaggingF, indelFlag, indelEstimatedLocation
 
