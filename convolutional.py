@@ -227,7 +227,7 @@ def genericFanOutFunction(myFSM, presentState, observedOutput, timeStep, additio
     return extensions
 
 
-def viterbiDecoderWithFlagging(numberOfStates, initialState, fanOutFunction, observedSequence, symbolsPerStateTransition, produceGraphics = True):
+def viterbiDecoderWithFlagging(numberOfStates, initialState, fanOutFunction, observedSequence, symbolsPerStateTransition, produceGraphics = False):
     # Viterbi decoder inspired by the implementation suggested by Todd K. Moon, programming laboratory 10, page 528.
     # More explanations on the Viterbi decoder are found on page 473 of the same book.
     # A metric function (!) that accepts a set of states p, next state q and observed stream r,
@@ -390,7 +390,7 @@ def testViterbiBitFlip():
                    [[1,1,1], [0,1,1], [1,0,1], [0,0,1]]]
     initialState = 0
     myFSM = FSM(states, triggers, outputTable, nextStateTable, initialState)
-    stream = np.random.randint(0,2,10)
+    stream = LOCAL_PRNG.randint(0,2,20)
     encodedStream = FSMEncoder(stream, myFSM)
 
     # Omer Sella: flatStream gives you the un-chopped encoded stream
@@ -402,21 +402,22 @@ def testViterbiBitFlip():
     ############# Omer Sella: Now we flip a single bit
     corruptStream = copy.deepcopy(flatStream)
     corruptStream[0] = 1 - corruptStream[0]
+    corruptStream[7] = 1 - corruptStream[0]
+    corruptStream[10] = 1 - corruptStream[0]
 
     def myFanOutFunction(state, observation, time):
         return genericFanOutFunction(myFSM, state, observation, time, None)
 
-    mostLikelyPath, numberOfEquallyLikelyPaths, paths = viterbiDecoder(8, 0, myFanOutFunction, corruptStream, 3)
-    mostLikelyPathsF, scoreVectorF, numberOfEquallyLikelyPathsVectorF, pathsWithFlaggingF, indelFlag, indelEstimatedLocation = viterbiDecoderWithFlagging(8, 0, myFanOutFunction, flatStream, 3)
+    #mostLikelyPath, numberOfEquallyLikelyPaths, paths = viterbiDecoder(8, 0, myFanOutFunction, corruptStream, 3)
+    mostLikelyPathsF, scoreVectorF, numberOfEquallyLikelyPathsVectorF, pathsWithFlaggingF, indelFlag, indelEstimatedLocation = viterbiDecoderWithFlagging(8, 0, myFanOutFunction, corruptStream, 3)
 
-    return stream, encodedStream, corruptStream, mostLikelyPath, numberOfEquallyLikelyPaths, paths, mostLikelyPathsF, scoreVectorF, numberOfEquallyLikelyPathsVectorF, pathsWithFlaggingF
+    return stream, encodedStream, flatStream, corruptStream, mostLikelyPathsF, scoreVectorF, numberOfEquallyLikelyPathsVectorF, pathsWithFlaggingF, indelFlag, indelEstimatedLocation
 
 
 def testViterbiDeletion():
     states = [0,1,2,3,4,5,6,7]
     # Omer Sella: triggers are the raw data that we want to encode, post processing i.e.: chopped into blocks that the FSM likes (2 bits in our case).
     triggers = [[0,0], [0,1], [1,0], [1,1]]
-    #Bug: the triggers came out as: [[0, 0], [1, 1], [1, 1], [0, 0], [0, 1]]
     nextStateTable = np.array([[0,1,2,3], [4,5,6,7], [1,0,3,2], [5,4,7,6], [2,3,0,1], [6,7,4,5] , [3,2,1,0], [7,6,5,4] ])
     outputTable = [[[0,0,0], [1,0,0], [0,1,0], [1,1,0]], 
                    [[0,0,1], [1,0,1], [0,1,1], [1,1,1]],
@@ -455,12 +456,55 @@ def testViterbiDeletion():
 
     #mostLikelyPathsF, scoreVectorF, numberOfEquallyLikelyPathsVectorF, pathsWithFlaggingF, indelFlag, indelEstimatedLocation = viterbiDecoderWithFlagging(8, 0, myFanOutFunction, flatStream, 3, produceGraphics = True)
     # Omer Sella: the line below is WITH a deletion sent to viterbi
-    mostLikelyPathsF, scoreVectorF, numberOfEquallyLikelyPathsVectorF, pathsWithFlaggingF, indelFlag, indelEstimatedLocation = viterbiDecoderWithFlagging(8, 0, myFanOutFunction, corruptStream, 3, produceGraphics = True)
+    mostLikelyPathsF, scoreVectorF, numberOfEquallyLikelyPathsVectorF, pathsWithFlaggingF, indelFlag, indelEstimatedLocation = viterbiDecoderWithFlagging(8, 0, myFanOutFunction, corruptStream, 3, produceGraphics = False)
 
     return stream, encodedStream, flatStream, corruptStream, mostLikelyPathsF, scoreVectorF, numberOfEquallyLikelyPathsVectorF, pathsWithFlaggingF, indelFlag, indelEstimatedLocation
 
+def exampleOneThirdConvolutional():
+    #Convolutional code taken from here: https://www.researchgate.net/publication/235958269_The_Viterbi_algorithm_demystified/figures?lo=1
+    states = [0,1,2,3,4,5,6,7]
+    # Omer Sella: triggers are the raw data that we want to encode, post processing i.e.: chopped into blocks that the FSM likes (2 bits in our case).
+    triggers = [[0], [1]]
+    #Bug: the triggers came out as: [[0, 0], [1, 1], [1, 1], [0, 0], [0, 1]]
+    nextStateTable = np.array([[0,4], [0,4], [1,5], [1,5], [2,6], [2,6] , [3,7], [3,7] ])
+    outputTable = [[[0,0,0], [1,0,0]], 
+                   [[0,1,1], [1,1,1]],
+                   [[0,1,0], [1,1,0]],
+                   [[0,0,1], [1,0,1]],
+                   [[0,0,1], [1,0,1]],
+                   [[0,1,0], [1,1,0]],
+                   [[0,1,1], [1,1,1]],
+                   [[0,0,0], [1,0,0]]]
+    initialState = 0
+    myFSM = FSM(states, triggers, outputTable, nextStateTable, initialState)
+    stream = np.random.randint(0,2,10)
+    encodedStream = FSMEncoder(stream, myFSM)
+    
+
+    # Omer Sella: flatStream gives you the un-chopped encoded stream
+    flatStream = []
+    for sublist in encodedStream:
+        for item in sublist:
+            flatStream.append(item)
+    
+    ############# Omer Sella: Now we flip a single bit
+    corruptStream = copy.deepcopy(flatStream)
+    corruptStream[0] = 1 - corruptStream[0]
+    corruptStream[7] = 1 - corruptStream[0]
+    corruptStream[10] = 1 - corruptStream[0]
+
+    def myFanOutFunction(state, observation, time):
+        return genericFanOutFunction(myFSM, state, observation, time, None)
+
+    #mostLikelyPath, numberOfEquallyLikelyPaths, paths = viterbiDecoder(8, 0, myFanOutFunction, flatStream, 3)
+    mostLikelyPaths, scoreVector, numberOfEquallyLikelyPathsVector, pathsWithFlagging, indelFlag, indelEstimatedLocation = viterbiDecoderWithFlagging(8, 0, myFanOutFunction, corruptStream, 3)
+
+    return stream, encodedStream, flatStream, corruptStream, mostLikelyPaths, scoreVector, numberOfEquallyLikelyPathsVector, pathsWithFlagging, indelFlag, indelEstimatedLocation
+
+
 if __name__ == '__main__':
     #stream, encodedStream, paths, mostLikelyPath, numberOfEquallyLikelyPaths, mostLikelyPaths, scoreVector, numberOfEquallyLikelyPathsVector, pathsWithFlagging, indelFlag, indelEstimatedLocation = exampleTwoThirdsConvolutional()
-    #stream, encodedStream, corruptStream, mlPath, n, pathsAfterCorruption, mostLikelyPathsF, scoreVectorF, numberOfEquallyLikelyPathsVectorF, pathsWithFlaggingF, indelFlag, indelEstimatedLocation  = testViterbiBitFlip()
+    #stream, encodedStream, flatEncodedStream, corruptStream, mostLikelyPathsF, scoreVectorF, numberOfEquallyLikelyPathsVectorF, pathsWithFlaggingF, indelFlag, indelEstimatedLocation  = testViterbiBitFlip()
     #stream, encodedStream, mostLikelyPaths, scoreVector, numberOfEquallyLikelyPathsVector, pathsWithFlagging, indelFlag, indelEstimatedLocation = exampleOneHalfConvolutional()
-    stream, encodedStream, flatEncodedStream, corruptStream, mostLikelyPathsF, scoreVectorF, numberOfEquallyLikelyPathsVectorF, pathsWithFlaggingF, indelFlag, indelEstimatedLocation = testViterbiDeletion()
+    #stream, encodedStream, flatEncodedStream, corruptStream, mostLikelyPathsF, scoreVectorF, numberOfEquallyLikelyPathsVectorF, pathsWithFlaggingF, indelFlag, indelEstimatedLocation = testViterbiDeletion()
+    stream, encodedStream, flatEncodedStream, corruptStream, mostLikelyPathsF, scoreVector, numberOfEquallyLikelyPathsVector, pathsWithFlagging, indelFlag, indelEstimatedLocation = exampleOneThirdConvolutional()
