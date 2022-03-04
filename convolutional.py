@@ -441,7 +441,7 @@ def testViterbiDeletion():
     ############# Omer Sella: Now we delete some bits and pad with 0s at the end
     corruptStream = np.zeros(len(flatStream), dtype = np.int32)
     
-    deletionLocation = 2
+    deletionLocation = 6
     numberOfBitsDeleted = 2
     corruptStream[0 : deletionLocation] =  flatStream[0 : deletionLocation]
     corruptStream[deletionLocation : len(flatStream)] = np.roll(flatStream[deletionLocation : ],  - numberOfBitsDeleted)
@@ -489,9 +489,14 @@ def exampleOneThirdConvolutional():
     
     ############# Omer Sella: Now we flip a single bit
     corruptStream = copy.deepcopy(flatStream)
-    corruptStream[0] = 1 - corruptStream[0]
-    corruptStream[7] = 1 - corruptStream[0]
-    corruptStream[10] = 1 - corruptStream[0]
+    #corruptStream[0] = 1 - corruptStream[0]
+    #corruptStream[7] = 1 - corruptStream[0]
+    #corruptStream[10] = 1 - corruptStream[0]
+
+    deletionLocation = 11
+    numberOfBitsDeleted = 2
+    corruptStream[0 : deletionLocation] =  flatStream[0 : deletionLocation]
+    corruptStream[deletionLocation : len(flatStream)] = np.roll(flatStream[deletionLocation : ],  - numberOfBitsDeleted)
 
     def myFanOutFunction(state, observation, time):
         return genericFanOutFunction(myFSM, state, observation, time, None)
